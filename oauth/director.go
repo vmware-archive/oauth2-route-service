@@ -10,7 +10,9 @@ type RouteServiceDirector struct {
 }
 
 const (
-	RouteServiceForwardHeader = "X-CF-Forwarded-Url"
+	RouteServiceForwardHeader   = "X-CF-Forwarded-Url"
+	RouteServiceSignatureHeader = "X-CF-Proxy-Signature"
+	RouteServiceMetadataHeader  = "X-CF-Proxy-Metadata"
 )
 
 func (d *RouteServiceDirector) RerouteRequest(r *http.Request) {

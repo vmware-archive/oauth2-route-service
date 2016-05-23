@@ -9,13 +9,13 @@ import (
 )
 
 type FakeAuthService struct {
-	IsUaaRedirectUrlStub        func(*http.Request) error
+	IsUaaRedirectUrlStub        func(*http.Request) bool
 	isUaaRedirectUrlMutex       sync.RWMutex
 	isUaaRedirectUrlArgsForCall []struct {
 		arg1 *http.Request
 	}
 	isUaaRedirectUrlReturns struct {
-		result1 error
+		result1 bool
 	}
 	AddSessionCookieStub        func(uaaRedirectRequest *http.Request, res *http.Response) error
 	addSessionCookieMutex       sync.RWMutex
@@ -43,7 +43,7 @@ type FakeAuthService struct {
 	}
 }
 
-func (fake *FakeAuthService) IsUaaRedirectUrl(arg1 *http.Request) error {
+func (fake *FakeAuthService) IsUaaRedirectUrl(arg1 *http.Request) bool {
 	fake.isUaaRedirectUrlMutex.Lock()
 	fake.isUaaRedirectUrlArgsForCall = append(fake.isUaaRedirectUrlArgsForCall, struct {
 		arg1 *http.Request
@@ -68,10 +68,10 @@ func (fake *FakeAuthService) IsUaaRedirectUrlArgsForCall(i int) *http.Request {
 	return fake.isUaaRedirectUrlArgsForCall[i].arg1
 }
 
-func (fake *FakeAuthService) IsUaaRedirectUrlReturns(result1 error) {
+func (fake *FakeAuthService) IsUaaRedirectUrlReturns(result1 bool) {
 	fake.IsUaaRedirectUrlStub = nil
 	fake.isUaaRedirectUrlReturns = struct {
-		result1 error
+		result1 bool
 	}{result1}
 }
 
