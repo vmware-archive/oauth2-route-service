@@ -8,10 +8,14 @@ import (
 
 type OauthTransport struct {
 	authService AuthService
+	transport   http.RoundTripper
 }
 
 func NewOauthTransport(authService AuthService) http.RoundTripper {
-	return &OauthTransport{authService: authService}
+	return &OauthTransport{
+		authService: authService,
+		transport:   http.DefaultTransport,
+	}
 }
 
 // uaa redirect url? get access token
@@ -26,11 +30,23 @@ func (t *OauthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	}
 
 	if t.authService.IsUaaRedirectUrl(r) {
+		err := t.authService.AddSessionCookie(r, res)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if !t.authService.HasValidAuthHeaders(r) {
 		res, err := t.authService.CreateLoginRequiredResponse()
 		if err != nil {
 			return nil, err
 		}
 		return res, nil
+	}
+
+	res, err = t.transport.RoundTrip(r)
+	if err != nil {
+		return nil, err
 	}
 
 	return res, nil

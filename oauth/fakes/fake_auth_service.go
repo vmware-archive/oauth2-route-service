@@ -37,7 +37,7 @@ type FakeAuthService struct {
 	CreateLoginRequiredResponseStub        func() (*http.Response, error)
 	createLoginRequiredResponseMutex       sync.RWMutex
 	createLoginRequiredResponseArgsForCall []struct{}
-	createLoginRequiredResponseReturns struct {
+	createLoginRequiredResponseReturns     struct {
 		result1 *http.Response
 		result2 error
 	}
