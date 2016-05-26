@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("UaaAuthService", func() {
+var _ = Describe("UaaAuthService", func() {
 	var (
 		authService AuthService
 	)
