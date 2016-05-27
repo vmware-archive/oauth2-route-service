@@ -1,19 +1,25 @@
-package oauth_test
+package uaa_test
 
 import (
+	"errors"
 	"net/http"
 	"net/url"
 	"os"
 
-	. "github.com/cfmobile/oauth2-route-service/oauth"
+	"github.com/cfmobile/oauth2-route-service/oauth"
+	. "github.com/cfmobile/oauth2-route-service/oauth/uaa"
+	"github.com/cfmobile/oauth2-route-service/oauth/uaa/fakes"
+	"github.com/gorilla/sessions"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/ghttp"
 )
 
 var _ = Describe("UaaAuthService", func() {
 	var (
-		authService AuthService
+		authService oauth.AuthService
+		store       *fakes.FakeStore
 	)
 
 	BeforeEach(func() {
@@ -24,13 +30,15 @@ var _ = Describe("UaaAuthService", func() {
 		os.Setenv(UAA_REDIRECT_PATH, "/auth/callback")
 
 		os.Setenv(UAA_CLIENT_ID, "my-client-id")
+
+		store = &fakes.FakeStore{}
 	})
 
 	Context("Service creation", func() {
 		testForMissingEnvProperty := func(property string) {
 			os.Unsetenv(property)
 			Expect(func() {
-				NewAuthService()
+				NewAuthService(store)
 			}).To(Panic())
 		}
 
@@ -56,15 +64,16 @@ var _ = Describe("UaaAuthService", func() {
 
 		It("succeeds if the env is set up properly", func() {
 			Expect(func() {
-				NewAuthService()
+				NewAuthService(store)
 			}).ToNot(Panic())
 		})
 	})
 
 	Context("Given proper environments setup", func() {
 		BeforeEach(func() {
-			authService = NewAuthService()
+			authService = NewAuthService(store)
 		})
+
 		Context("IsUaaRedirectUrl", func() {
 
 			It("checks that the request is from uaa", func() {
@@ -106,6 +115,62 @@ var _ = Describe("UaaAuthService", func() {
 			It("will request a code response type", func() {
 				loginURL := getLoginUrl()
 				Expect(loginURL.Query().Get("response_type")).To(Equal("code"))
+			})
+		})
+
+		Context("HasValidAuthHeaders", func() {
+			var (
+				uaaServer *ghttp.Server
+				req       *http.Request
+			)
+			BeforeEach(func() {
+				uaaServer = ghttp.NewServer()
+				req, _ = http.NewRequest("GET", "http://my-app.com", nil)
+				os.Setenv(UAA_HOST, uaaServer.URL())
+
+				authService = NewAuthService(store)
+			})
+
+			It("returns false if there is an error", func() {
+				store.GetReturns(&sessions.Session{}, errors.New("some error"))
+				Expect(authService.HasValidAuthHeaders(req)).To(BeFalse())
+			})
+
+			It("returns false if there is no token", func() {
+				store.GetReturns(&sessions.Session{}, nil)
+				Expect(authService.HasValidAuthHeaders(req)).To(BeFalse())
+			})
+
+			Context("Given a token exists", func() {
+				BeforeEach(func() {
+					session := &sessions.Session{
+						Values: make(map[interface{}]interface{}),
+					}
+					session.Values["token"] = "some-token"
+
+					store.GetReturns(session, nil)
+				})
+
+				It("returns true if the uaa server returns 200", func() {
+					uaaServer.AppendHandlers(
+						ghttp.CombineHandlers(
+							ghttp.VerifyRequest("GET", "/userinfo"),
+							ghttp.VerifyHeaderKV("Authorization", "Bearer some-token"),
+							ghttp.RespondWith(http.StatusOK, "all good"),
+						),
+					)
+					Expect(authService.HasValidAuthHeaders(req)).To(BeTrue())
+				})
+
+				It("returns false if uaa is not able to verify the token", func() {
+					uaaServer.AppendHandlers(
+						ghttp.CombineHandlers(
+							ghttp.RespondWith(http.StatusForbidden, "no good"),
+							ghttp.VerifyHeaderKV("Authorization", "Bearer some-token"),
+						),
+					)
+					Expect(authService.HasValidAuthHeaders(req)).To(BeFalse())
+				})
 			})
 		})
 	})
