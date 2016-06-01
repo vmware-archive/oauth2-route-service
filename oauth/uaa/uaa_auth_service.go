@@ -1,10 +1,14 @@
 package uaa
 
 import (
+	"bytes"
+	"crypto/tls"
+	"encoding/gob"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -24,9 +28,10 @@ const (
 	UAA_LOGIN_PATH    = "UAA_LOGIN_PATH"
 	UAA_LOGIN_SCOPE   = "UAA_LOGIN_SCOPE"
 
-	userInfoEndpoint = "/userinfo"
-	tokenEndpoint    = "/oauth/token"
-	sessionName      = "rs-session"
+	userInfoEndpoint   = "/userinfo"
+	tokenEndpoint      = "/oauth/token"
+	sessionName        = "rs-session"
+	redirectCookieName = "X-RS-Redirect-URL"
 )
 
 type UaaAuthService struct {
@@ -41,6 +46,7 @@ type UaaAuthService struct {
 }
 
 func NewAuthService(store sessions.Store) oauth.AuthService {
+	gob.Register(Token{})
 	return &UaaAuthService{
 		uaaHost:         parseEnvProperty(UAA_HOST),
 		uaaRedirectPath: parseEnvProperty(UAA_REDIRECT_PATH),
@@ -50,7 +56,8 @@ func NewAuthService(store sessions.Store) oauth.AuthService {
 		uaaClientSecret: parseEnvProperty(UAA_CLIENT_SECRET),
 		store:           store,
 		client: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout:   30 * time.Second,
+			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
 		},
 	}
 }
@@ -67,30 +74,81 @@ func (u *UaaAuthService) IsUaaRedirectUrl(req *http.Request) bool {
 	return req.URL.Path == u.uaaRedirectPath
 }
 
-func (u *UaaAuthService) AddSessionCookie(req *http.Request, res *http.Response) error {
+func (u *UaaAuthService) AuthenticatedAppRedirect(req *http.Request) (*http.Response, error) {
 	code := req.URL.Query().Get("code")
+	if code == "" {
+		return nil, errors.New("Expected an authentication code but didn't get one.")
+	}
 
+	token, err := u.getAuthToken(code)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &http.Response{
+		Header: make(http.Header),
+		Body:   ioutil.NopCloser(bytes.NewReader([]byte{})),
+	}
+
+	err = u.addTokenToCookie(req, res, token)
+	if err != nil {
+		return nil, err
+	}
+
+	redirectCookie, err := req.Cookie(redirectCookieName)
+	if err != nil {
+		return nil, err
+	}
+	res.StatusCode = http.StatusFound
+	res.Header.Set("Location", redirectCookie.Value)
+
+	return res, nil
+}
+
+func (u *UaaAuthService) createAuthTokenRequest(code string) (*http.Request, error) {
+	requestBody := make(url.Values)
+	requestBody.Set("grant_type", "authorization_code")
+	requestBody.Set("code", code)
+	requestBody.Set("response_type", "token")
+
+	tokenRequest, err := http.NewRequest("POST", u.uaaHost+tokenEndpoint, strings.NewReader(requestBody.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	tokenRequest.SetBasicAuth(u.uaaClientId, u.uaaClientSecret)
+	tokenRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	return tokenRequest, err
+}
+
+func (u *UaaAuthService) getAuthToken(code string) (*Token, error) {
 	tokenRequest, err := u.createAuthTokenRequest(code)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	tokenResponse, err := u.client.Do(tokenRequest)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if tokenResponse.StatusCode != http.StatusOK {
-		return errors.New("Unable to get an auth token.")
+		log.Printf("Unable to get a token: %+v\n", tokenResponse)
+		log.Printf("Token Request: %+v\n", tokenRequest)
+		return nil, errors.New("Unable to get an auth token.")
 	}
 
 	var token Token
 	body, err := ioutil.ReadAll(tokenResponse.Body)
 	err = json.Unmarshal(body, &token)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	session, _ := u.store.Get(req, sessionName)
-	session.Values["token"] = token
+	return &token, nil
+}
+
+func (u *UaaAuthService) addTokenToCookie(req *http.Request, res *http.Response, token *Token) error {
+	session, err := u.store.Get(req, sessionName)
+	session.Values["token"] = *token
 
 	cw := newCookieWriter()
 	err = u.store.Save(req, cw, session)
@@ -107,21 +165,6 @@ func (u *UaaAuthService) AddSessionCookie(req *http.Request, res *http.Response)
 	return nil
 }
 
-func (u *UaaAuthService) createAuthTokenRequest(code string) (*http.Request, error) {
-	requestBody := make(url.Values)
-	requestBody.Set("grant_type", "authorization_code")
-	requestBody.Set("code", code)
-	requestBody.Set("response_type", "token")
-
-	tokenRequest, err := http.NewRequest("POST", u.uaaHost+tokenEndpoint, strings.NewReader(requestBody.Encode()))
-	if err != nil {
-		return nil, err
-	}
-	tokenRequest.SetBasicAuth(u.uaaClientId, u.uaaClientSecret)
-
-	return tokenRequest, err
-}
-
 func (u *UaaAuthService) HasValidAuthHeaders(req *http.Request) bool {
 	session, err := u.store.Get(req, sessionName)
 	if err != nil {
@@ -130,15 +173,17 @@ func (u *UaaAuthService) HasValidAuthHeaders(req *http.Request) bool {
 
 	token, found := session.Values["token"]
 	if !found {
+		log.Println("Unable to find a token")
 		return false
 	}
 
-	tokenValue, ok := token.(string)
+	tokenValue, ok := token.(Token)
 	if !ok {
 		return false
 	}
 
-	return u.validateToken(tokenValue)
+	log.Println("Found token " + tokenValue.AccessToken)
+	return u.validateToken(tokenValue.AccessToken)
 }
 
 func (u *UaaAuthService) validateToken(token string) bool {
@@ -156,10 +201,11 @@ func (u *UaaAuthService) validateToken(token string) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-func (u *UaaAuthService) CreateLoginRequiredResponse() (*http.Response, error) {
+func (u *UaaAuthService) CreateLoginRequiredResponse(req *http.Request) (*http.Response, error) {
 	loginResponse := &http.Response{
 		StatusCode: http.StatusFound,
 		Header:     make(http.Header),
+		Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
 	}
 
 	loginUrl, err := url.Parse(u.uaaHost + u.uaaLoginPath)
@@ -170,6 +216,10 @@ func (u *UaaAuthService) CreateLoginRequiredResponse() (*http.Response, error) {
 	loginUrl.RawQuery = loginQuery.Encode()
 
 	loginResponse.Header.Set("Location", loginUrl.String())
+
+	cookie := getRedirectCookie(req.URL)
+	loginResponse.Header.Add("Set-Cookie", cookie.String())
+
 	return loginResponse, nil
 }
 
@@ -181,4 +231,12 @@ func (u *UaaAuthService) createLoginQuery() url.Values {
 	queryValues.Set("response_type", "code")
 
 	return queryValues
+}
+
+func getRedirectCookie(url *url.URL) *http.Cookie {
+	cookie := &http.Cookie{
+		Name:  "X-RS-Redirect-URL",
+		Value: url.String(),
+	}
+	return cookie
 }

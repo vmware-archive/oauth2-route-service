@@ -5,7 +5,7 @@ import "net/http"
 //go:generate counterfeiter . AuthService
 type AuthService interface {
 	IsUaaRedirectUrl(*http.Request) bool
-	AddSessionCookie(uaaRedirectRequest *http.Request, res *http.Response) error
+	AuthenticatedAppRedirect(uaaRedirectRequest *http.Request) (*http.Response, error)
 	HasValidAuthHeaders(*http.Request) bool
-	CreateLoginRequiredResponse() (*http.Response, error)
+	CreateLoginRequiredResponse(*http.Request) (*http.Response, error)
 }

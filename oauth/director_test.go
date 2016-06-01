@@ -11,13 +11,11 @@ import (
 
 var _ = Describe("Director", func() {
 	var (
-		req      *http.Request
-		director *RouteServiceDirector
+		req *http.Request
 	)
 
 	BeforeEach(func() {
 		req, _ = http.NewRequest("GET", "http://sample.com", nil)
-		director = &RouteServiceDirector{}
 	})
 
 	Context("Forward header set", func() {
@@ -27,12 +25,12 @@ var _ = Describe("Director", func() {
 		})
 
 		It("Sets the request URL to the forward url", func() {
-			director.RerouteRequest(req)
+			RerouteRequest(req)
 			Expect(req.URL.String()).To(Equal(forwardUrl))
 		})
 
 		It("Sets the request Host to the forward url host", func() {
-			director.RerouteRequest(req)
+			RerouteRequest(req)
 			Expect(req.Host).To(Equal("new-url.com"))
 		})
 	})
@@ -42,7 +40,7 @@ var _ = Describe("Director", func() {
 			req.Header.Add("X-CF-Proxy-Metadata", "some metadata")
 			req.Header.Add("X-CF-Proxy-Signature", "some signature")
 
-			director.RerouteRequest(req)
+			RerouteRequest(req)
 
 			Expect(req.Header.Get("X-CF-Proxy-Metadata")).To(Equal("some metadata"))
 			Expect(req.Header.Get("X-CF-Proxy-Signature")).To(Equal("some signature"))

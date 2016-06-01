@@ -83,7 +83,7 @@ var _ = Describe("Transport", func() {
 
 		It("returns an error if it can't get an access token from the access code", func() {
 			fakeAuthService.IsUaaRedirectUrlReturns(true)
-			fakeAuthService.AddSessionCookieReturns(errors.New("some error"))
+			fakeAuthService.AuthenticatedAppRedirectReturns(nil, errors.New("some error"))
 
 			res, err := transport.RoundTrip(req)
 			Expect(err).ToNot(BeNil())

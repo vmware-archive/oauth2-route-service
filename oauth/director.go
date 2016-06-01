@@ -6,24 +6,21 @@ import (
 	"net/url"
 )
 
-type RouteServiceDirector struct {
-}
-
 const (
 	RouteServiceForwardHeader   = "X-CF-Forwarded-Url"
 	RouteServiceSignatureHeader = "X-CF-Proxy-Signature"
 	RouteServiceMetadataHeader  = "X-CF-Proxy-Metadata"
 )
 
-func (d *RouteServiceDirector) RerouteRequest(r *http.Request) {
-	forwardedUrlString := r.Header.Get(RouteServiceForwardHeader)
+func RerouteRequest(req *http.Request) {
+	forwardedUrlString := req.Header.Get(RouteServiceForwardHeader)
 
 	forwardedUrl, err := url.Parse(forwardedUrlString)
 	if err != nil {
-		log.Printf("Request %+v does not have a forward url.\n", r)
+		log.Printf("Request %+v does not have a forward url.\n", req)
 		return
 	}
 
-	r.URL = forwardedUrl
-	r.Host = forwardedUrl.Host
+	req.URL = forwardedUrl
+	req.Host = forwardedUrl.Host
 }

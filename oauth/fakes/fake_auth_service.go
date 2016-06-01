@@ -17,14 +17,14 @@ type FakeAuthService struct {
 	isUaaRedirectUrlReturns struct {
 		result1 bool
 	}
-	AddSessionCookieStub        func(uaaRedirectRequest *http.Request, res *http.Response) error
-	addSessionCookieMutex       sync.RWMutex
-	addSessionCookieArgsForCall []struct {
+	AuthenticatedAppRedirectStub        func(uaaRedirectRequest *http.Request) (*http.Response, error)
+	authenticatedAppRedirectMutex       sync.RWMutex
+	authenticatedAppRedirectArgsForCall []struct {
 		uaaRedirectRequest *http.Request
-		res                *http.Response
 	}
-	addSessionCookieReturns struct {
-		result1 error
+	authenticatedAppRedirectReturns struct {
+		result1 *http.Response
+		result2 error
 	}
 	HasValidAuthHeadersStub        func(*http.Request) bool
 	hasValidAuthHeadersMutex       sync.RWMutex
@@ -34,10 +34,12 @@ type FakeAuthService struct {
 	hasValidAuthHeadersReturns struct {
 		result1 bool
 	}
-	CreateLoginRequiredResponseStub        func() (*http.Response, error)
+	CreateLoginRequiredResponseStub        func(*http.Request) (*http.Response, error)
 	createLoginRequiredResponseMutex       sync.RWMutex
-	createLoginRequiredResponseArgsForCall []struct{}
-	createLoginRequiredResponseReturns     struct {
+	createLoginRequiredResponseArgsForCall []struct {
+		arg1 *http.Request
+	}
+	createLoginRequiredResponseReturns struct {
 		result1 *http.Response
 		result2 error
 	}
@@ -75,37 +77,37 @@ func (fake *FakeAuthService) IsUaaRedirectUrlReturns(result1 bool) {
 	}{result1}
 }
 
-func (fake *FakeAuthService) AddSessionCookie(uaaRedirectRequest *http.Request, res *http.Response) error {
-	fake.addSessionCookieMutex.Lock()
-	fake.addSessionCookieArgsForCall = append(fake.addSessionCookieArgsForCall, struct {
+func (fake *FakeAuthService) AuthenticatedAppRedirect(uaaRedirectRequest *http.Request) (*http.Response, error) {
+	fake.authenticatedAppRedirectMutex.Lock()
+	fake.authenticatedAppRedirectArgsForCall = append(fake.authenticatedAppRedirectArgsForCall, struct {
 		uaaRedirectRequest *http.Request
-		res                *http.Response
-	}{uaaRedirectRequest, res})
-	fake.addSessionCookieMutex.Unlock()
-	if fake.AddSessionCookieStub != nil {
-		return fake.AddSessionCookieStub(uaaRedirectRequest, res)
+	}{uaaRedirectRequest})
+	fake.authenticatedAppRedirectMutex.Unlock()
+	if fake.AuthenticatedAppRedirectStub != nil {
+		return fake.AuthenticatedAppRedirectStub(uaaRedirectRequest)
 	} else {
-		return fake.addSessionCookieReturns.result1
+		return fake.authenticatedAppRedirectReturns.result1, fake.authenticatedAppRedirectReturns.result2
 	}
 }
 
-func (fake *FakeAuthService) AddSessionCookieCallCount() int {
-	fake.addSessionCookieMutex.RLock()
-	defer fake.addSessionCookieMutex.RUnlock()
-	return len(fake.addSessionCookieArgsForCall)
+func (fake *FakeAuthService) AuthenticatedAppRedirectCallCount() int {
+	fake.authenticatedAppRedirectMutex.RLock()
+	defer fake.authenticatedAppRedirectMutex.RUnlock()
+	return len(fake.authenticatedAppRedirectArgsForCall)
 }
 
-func (fake *FakeAuthService) AddSessionCookieArgsForCall(i int) (*http.Request, *http.Response) {
-	fake.addSessionCookieMutex.RLock()
-	defer fake.addSessionCookieMutex.RUnlock()
-	return fake.addSessionCookieArgsForCall[i].uaaRedirectRequest, fake.addSessionCookieArgsForCall[i].res
+func (fake *FakeAuthService) AuthenticatedAppRedirectArgsForCall(i int) *http.Request {
+	fake.authenticatedAppRedirectMutex.RLock()
+	defer fake.authenticatedAppRedirectMutex.RUnlock()
+	return fake.authenticatedAppRedirectArgsForCall[i].uaaRedirectRequest
 }
 
-func (fake *FakeAuthService) AddSessionCookieReturns(result1 error) {
-	fake.AddSessionCookieStub = nil
-	fake.addSessionCookieReturns = struct {
-		result1 error
-	}{result1}
+func (fake *FakeAuthService) AuthenticatedAppRedirectReturns(result1 *http.Response, result2 error) {
+	fake.AuthenticatedAppRedirectStub = nil
+	fake.authenticatedAppRedirectReturns = struct {
+		result1 *http.Response
+		result2 error
+	}{result1, result2}
 }
 
 func (fake *FakeAuthService) HasValidAuthHeaders(arg1 *http.Request) bool {
@@ -140,12 +142,14 @@ func (fake *FakeAuthService) HasValidAuthHeadersReturns(result1 bool) {
 	}{result1}
 }
 
-func (fake *FakeAuthService) CreateLoginRequiredResponse() (*http.Response, error) {
+func (fake *FakeAuthService) CreateLoginRequiredResponse(arg1 *http.Request) (*http.Response, error) {
 	fake.createLoginRequiredResponseMutex.Lock()
-	fake.createLoginRequiredResponseArgsForCall = append(fake.createLoginRequiredResponseArgsForCall, struct{}{})
+	fake.createLoginRequiredResponseArgsForCall = append(fake.createLoginRequiredResponseArgsForCall, struct {
+		arg1 *http.Request
+	}{arg1})
 	fake.createLoginRequiredResponseMutex.Unlock()
 	if fake.CreateLoginRequiredResponseStub != nil {
-		return fake.CreateLoginRequiredResponseStub()
+		return fake.CreateLoginRequiredResponseStub(arg1)
 	} else {
 		return fake.createLoginRequiredResponseReturns.result1, fake.createLoginRequiredResponseReturns.result2
 	}
@@ -155,6 +159,12 @@ func (fake *FakeAuthService) CreateLoginRequiredResponseCallCount() int {
 	fake.createLoginRequiredResponseMutex.RLock()
 	defer fake.createLoginRequiredResponseMutex.RUnlock()
 	return len(fake.createLoginRequiredResponseArgsForCall)
+}
+
+func (fake *FakeAuthService) CreateLoginRequiredResponseArgsForCall(i int) *http.Request {
+	fake.createLoginRequiredResponseMutex.RLock()
+	defer fake.createLoginRequiredResponseMutex.RUnlock()
+	return fake.createLoginRequiredResponseArgsForCall[i].arg1
 }
 
 func (fake *FakeAuthService) CreateLoginRequiredResponseReturns(result1 *http.Response, result2 error) {

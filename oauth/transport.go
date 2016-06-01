@@ -1,8 +1,10 @@
 package oauth
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -14,38 +16,44 @@ type OauthTransport struct {
 func NewOauthTransport(authService AuthService) http.RoundTripper {
 	return &OauthTransport{
 		authService: authService,
-		transport:   http.DefaultTransport,
+		transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
 	}
 }
 
 // uaa redirect url? get access token
 // access token present? check if valid. If it is forward to dashboard
 // if not  go to login page
-func (t *OauthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	res := &http.Response{}
-
-	err := checkHeaders(r)
+func (t *OauthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	fmt.Println("Received a new request to route")
+	fmt.Printf("Request: %+v\n", req)
+	err := checkHeaders(req)
 	if err != nil {
+		log.Printf("Bad headers. %+v\n", req.Header)
 		return nil, err
 	}
 
-	if t.authService.IsUaaRedirectUrl(r) {
-		err := t.authService.AddSessionCookie(r, res)
+	if t.authService.IsUaaRedirectUrl(req) {
+		res, err := t.authService.AuthenticatedAppRedirect(req)
 		if err != nil {
 			return nil, err
 		}
 		return res, nil
 	}
 
-	if !t.authService.HasValidAuthHeaders(r) {
-		res, err := t.authService.CreateLoginRequiredResponse()
+	if !t.authService.HasValidAuthHeaders(req) {
+		fmt.Printf("No auth header, redirect to ogin url\n")
+		res, err := t.authService.CreateLoginRequiredResponse(req)
+		fmt.Printf("Login response: %+v\n", res)
 		if err != nil {
+			log.Println(err.Error())
 			return nil, err
 		}
 		return res, nil
 	}
 
-	res, err = t.transport.RoundTrip(r)
+	res, err := t.transport.RoundTrip(req)
 	if err != nil {
 		return nil, err
 	}
