@@ -2,6 +2,8 @@ package uaa_test
 
 import (
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -30,6 +32,7 @@ var _ = Describe("UaaAuthService", func() {
 		os.Setenv(UAA_REDIRECT_PATH, "/auth/callback")
 
 		os.Setenv(UAA_CLIENT_ID, "my-client-id")
+		os.Setenv(UAA_CLIENT_SECRET, "my-client-secret")
 
 		store = &fakes.FakeStore{}
 	})
@@ -62,6 +65,10 @@ var _ = Describe("UaaAuthService", func() {
 			testForMissingEnvProperty(UAA_CLIENT_ID)
 		})
 
+		It("panics if there is no UAA_CLIENT_SECRET", func() {
+			testForMissingEnvProperty(UAA_CLIENT_SECRET)
+		})
+
 		It("succeeds if the env is set up properly", func() {
 			Expect(func() {
 				NewAuthService(store)
@@ -75,7 +82,6 @@ var _ = Describe("UaaAuthService", func() {
 		})
 
 		Context("IsUaaRedirectUrl", func() {
-
 			It("checks that the request is from uaa", func() {
 				req, _ := http.NewRequest("GET", "http://my-url.com/auth/callback", nil)
 				Expect(authService.IsUaaRedirectUrl(req)).To(BeTrue())
@@ -115,6 +121,12 @@ var _ = Describe("UaaAuthService", func() {
 			It("will request a code response type", func() {
 				loginURL := getLoginUrl()
 				Expect(loginURL.Query().Get("response_type")).To(Equal("code"))
+			})
+
+			It("sets a cookie so save where the original navigation was aimed", func() {
+				res, _ := authService.CreateLoginRequiredResponse()
+				cookies := res.Cookies()
+				fmt.Printf("%+v\n", cookies)
 			})
 		})
 
@@ -170,6 +182,98 @@ var _ = Describe("UaaAuthService", func() {
 						),
 					)
 					Expect(authService.HasValidAuthHeaders(req)).To(BeFalse())
+				})
+			})
+		})
+
+		Context("AddSessionCookie", func() {
+			var (
+				uaaServer        *ghttp.Server
+				req              *http.Request
+				res              *http.Response
+				expectedSentData url.Values
+			)
+
+			BeforeEach(func() {
+				uaaServer = ghttp.NewServer()
+				req, _ = http.NewRequest("GET", "http://my-app.com/oauth/callback?code=mycode", nil)
+				res = &http.Response{}
+
+				os.Setenv(UAA_HOST, uaaServer.URL())
+
+				authService = NewAuthService(store)
+
+				expectedSentData = make(url.Values)
+				expectedSentData.Set("grant_type", "authorization_code")
+				expectedSentData.Set("code", "mycode")
+				expectedSentData.Set("response_type", "token")
+				// expectedSentData.Set("redirect_uri", "http://my-app.com/welcome")
+			})
+
+			verifyForm := func(w http.ResponseWriter, req *http.Request) {
+				body, _ := ioutil.ReadAll(req.Body)
+				Expect(string(body)).To(Equal(expectedSentData.Encode()))
+			}
+
+			It("returns an error if it can't get an auth token", func() {
+				uaaServer.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("POST", "/oauth/token"),
+						ghttp.VerifyBasicAuth(os.Getenv(UAA_CLIENT_ID), os.Getenv(UAA_CLIENT_SECRET)),
+						verifyForm,
+						ghttp.RespondWith(http.StatusInternalServerError, "error"),
+					),
+				)
+
+				err := authService.AddSessionCookie(req, res)
+
+				Expect(uaaServer.ReceivedRequests()).To(HaveLen(1))
+				Expect(err).To(HaveOccurred())
+			})
+
+			Context("code is valid", func() {
+				token := Token{
+					AccessToken: "some-token",
+					TokenType:   "bearer",
+					ExpiresIn:   100,
+				}
+
+				BeforeEach(func() {
+					uaaServer.AppendHandlers(
+						ghttp.CombineHandlers(
+							ghttp.VerifyRequest("POST", "/oauth/token"),
+							ghttp.VerifyBasicAuth(os.Getenv(UAA_CLIENT_ID), os.Getenv(UAA_CLIENT_SECRET)),
+							verifyForm,
+							ghttp.RespondWithJSONEncoded(http.StatusOK, token),
+						),
+					)
+
+					store.GetReturns(&sessions.Session{
+						Values: make(map[interface{}]interface{}),
+					}, nil)
+
+					err := authService.AddSessionCookie(req, res)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("fetches an auth token from the uaa server", func() {
+					Expect(uaaServer.ReceivedRequests()).To(HaveLen(1))
+				})
+
+				It("adds the access token to a the session", func() {
+					expectedSession := sessions.Session{
+						Values: make(map[interface{}]interface{}),
+					}
+					expectedSession.Values["token"] = token
+
+					Expect(store.SaveCallCount()).To(Equal(1))
+					callReq, _, callSession := store.SaveArgsForCall(1)
+					Expect(callReq).To(Equal(req))
+					Expect(callSession).To(Equal(expectedSession))
+				})
+
+				It("redirects the client after setting the session token", func() {
+					Expect(res.StatusCode).To(Equal(http.StatusFound))
 				})
 			})
 		})

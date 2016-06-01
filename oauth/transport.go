@@ -34,6 +34,7 @@ func (t *OauthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 		if err != nil {
 			return nil, err
 		}
+		return res, nil
 	}
 
 	if !t.authService.HasValidAuthHeaders(r) {

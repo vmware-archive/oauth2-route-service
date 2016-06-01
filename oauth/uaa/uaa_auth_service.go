@@ -1,10 +1,14 @@
 package uaa
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/cfmobile/oauth2-route-service/oauth"
@@ -14,12 +18,15 @@ import (
 const (
 	UAA_REDIRECT_PATH = "UAA_REDIRECT_PATH"
 
-	UAA_CLIENT_ID   = "UAA_CLIENT_ID"
-	UAA_HOST        = "UAA_HOST"
-	UAA_LOGIN_PATH  = "UAA_LOGIN_PATH"
-	UAA_LOGIN_SCOPE = "UAA_LOGIN_SCOPE"
+	UAA_CLIENT_ID     = "UAA_CLIENT_ID"
+	UAA_CLIENT_SECRET = "UAA_CLIENT_SECRET"
+	UAA_HOST          = "UAA_HOST"
+	UAA_LOGIN_PATH    = "UAA_LOGIN_PATH"
+	UAA_LOGIN_SCOPE   = "UAA_LOGIN_SCOPE"
 
 	userInfoEndpoint = "/userinfo"
+	tokenEndpoint    = "/oauth/token"
+	sessionName      = "rs-session"
 )
 
 type UaaAuthService struct {
@@ -28,6 +35,7 @@ type UaaAuthService struct {
 	uaaLoginPath    string
 	uaaLoginScope   string
 	uaaClientId     string
+	uaaClientSecret string
 	store           sessions.Store
 	client          *http.Client
 }
@@ -39,6 +47,7 @@ func NewAuthService(store sessions.Store) oauth.AuthService {
 		uaaLoginPath:    parseEnvProperty(UAA_LOGIN_PATH),
 		uaaLoginScope:   parseEnvProperty(UAA_LOGIN_SCOPE),
 		uaaClientId:     parseEnvProperty(UAA_CLIENT_ID),
+		uaaClientSecret: parseEnvProperty(UAA_CLIENT_SECRET),
 		store:           store,
 		client: &http.Client{
 			Timeout: 30 * time.Second,
@@ -59,11 +68,62 @@ func (u *UaaAuthService) IsUaaRedirectUrl(req *http.Request) bool {
 }
 
 func (u *UaaAuthService) AddSessionCookie(req *http.Request, res *http.Response) error {
+	code := req.URL.Query().Get("code")
+
+	tokenRequest, err := u.createAuthTokenRequest(code)
+	if err != nil {
+		return err
+	}
+	tokenResponse, err := u.client.Do(tokenRequest)
+	if err != nil {
+		return err
+	}
+	if tokenResponse.StatusCode != http.StatusOK {
+		return errors.New("Unable to get an auth token.")
+	}
+
+	var token Token
+	body, err := ioutil.ReadAll(tokenResponse.Body)
+	err = json.Unmarshal(body, &token)
+	if err != nil {
+		return err
+	}
+
+	session, _ := u.store.Get(req, sessionName)
+	session.Values["token"] = token
+
+	cw := newCookieWriter()
+	err = u.store.Save(req, cw, session)
+	if err != nil {
+		return err
+	}
+
+	for key, headers := range cw.Header() {
+		for _, header := range headers {
+			res.Header.Add(key, header)
+		}
+	}
+
 	return nil
 }
 
+func (u *UaaAuthService) createAuthTokenRequest(code string) (*http.Request, error) {
+	requestBody := make(url.Values)
+	requestBody.Set("grant_type", "authorization_code")
+	requestBody.Set("code", code)
+	requestBody.Set("response_type", "token")
+
+	tokenRequest, err := http.NewRequest("POST", u.uaaHost+tokenEndpoint, strings.NewReader(requestBody.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	tokenRequest.SetBasicAuth(u.uaaClientId, u.uaaClientSecret)
+
+	return tokenRequest, err
+}
+
 func (u *UaaAuthService) HasValidAuthHeaders(req *http.Request) bool {
-	session, err := u.store.Get(req, "rs-session")
+	session, err := u.store.Get(req, sessionName)
 	if err != nil {
 		return false
 	}
