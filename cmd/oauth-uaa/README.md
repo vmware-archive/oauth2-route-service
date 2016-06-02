@@ -20,7 +20,7 @@ Assuming I want to push a sample app called [dora](https://github.com/cloudfound
 
 The easiest way is using the [cf-uaac gem](https://github.com/cloudfoundry/cf-uaac)
 
-The client properties should be similar to below. Make sure to replace *my-cf.com* with the a real cloudfoundry url. 
+The client properties should be similar to below. Make sure to replace *my-cf.com* with a real cloudfoundry url. 
  
 
 ```
