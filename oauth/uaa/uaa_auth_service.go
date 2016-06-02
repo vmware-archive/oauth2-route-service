@@ -6,12 +6,10 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -35,26 +33,16 @@ const (
 )
 
 type UaaAuthService struct {
-	uaaHost         string
-	uaaRedirectPath string
-	uaaLoginPath    string
-	uaaLoginScope   string
-	uaaClientId     string
-	uaaClientSecret string
-	store           sessions.Store
-	client          *http.Client
+	config UAAConfig
+	store  sessions.Store
+	client *http.Client
 }
 
 func NewAuthService(store sessions.Store, skipSSLValidation bool) oauth.AuthService {
 	gob.Register(Token{})
 	return &UaaAuthService{
-		uaaHost:         parseEnvProperty(UAA_HOST),
-		uaaRedirectPath: parseEnvProperty(UAA_REDIRECT_PATH),
-		uaaLoginPath:    parseEnvProperty(UAA_LOGIN_PATH),
-		uaaLoginScope:   parseEnvProperty(UAA_LOGIN_SCOPE),
-		uaaClientId:     parseEnvProperty(UAA_CLIENT_ID),
-		uaaClientSecret: parseEnvProperty(UAA_CLIENT_SECRET),
-		store:           store,
+		config: GetConfigFromEnv(),
+		store:  store,
 		client: &http.Client{
 			Timeout:   30 * time.Second,
 			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: skipSSLValidation}},
@@ -62,16 +50,8 @@ func NewAuthService(store sessions.Store, skipSSLValidation bool) oauth.AuthServ
 	}
 }
 
-func parseEnvProperty(property string) string {
-	value := os.Getenv(property)
-	if value == "" {
-		panic(fmt.Sprintf("%s needs to be set", property))
-	}
-	return value
-}
-
 func (u *UaaAuthService) IsUaaRedirectUrl(req *http.Request) bool {
-	return req.URL.Path == u.uaaRedirectPath
+	return req.URL.Path == u.config.RedirectPath
 }
 
 func (u *UaaAuthService) AuthenticatedAppRedirect(req *http.Request) (*http.Response, error) {
@@ -111,11 +91,11 @@ func (u *UaaAuthService) createAuthTokenRequest(code string) (*http.Request, err
 	requestBody.Set("code", code)
 	requestBody.Set("response_type", "token")
 
-	tokenRequest, err := http.NewRequest("POST", u.uaaHost+tokenEndpoint, strings.NewReader(requestBody.Encode()))
+	tokenRequest, err := http.NewRequest("POST", u.config.Host+tokenEndpoint, strings.NewReader(requestBody.Encode()))
 	if err != nil {
 		return nil, err
 	}
-	tokenRequest.SetBasicAuth(u.uaaClientId, u.uaaClientSecret)
+	tokenRequest.SetBasicAuth(u.config.ClientId, u.config.ClientSecret)
 	tokenRequest.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	return tokenRequest, err
@@ -179,26 +159,35 @@ func (u *UaaAuthService) HasValidAuthHeaders(req *http.Request) bool {
 
 	tokenValue, ok := token.(Token)
 	if !ok {
+		log.Printf("Unable to parse token: %v\n", token)
 		return false
 	}
 
-	log.Println("Found token " + tokenValue.AccessToken)
 	return u.validateToken(tokenValue.AccessToken)
 }
 
 func (u *UaaAuthService) validateToken(token string) bool {
-	userInfoAddr := u.uaaHost + userInfoEndpoint
+	userInfoAddr := u.config.Host + userInfoEndpoint
 	req, err := http.NewRequest("GET", userInfoAddr, nil)
 	if err != nil {
+		log.Printf("Unable to validate token: %s", token)
 		return false
 	}
 
 	req.Header.Add("Authorization", "Bearer "+token)
 	resp, err := u.client.Do(req)
 	if err != nil {
+		log.Printf("Token verification failed. Error: %s\n", err.Error())
 		return false
 	}
-	return resp.StatusCode == http.StatusOK
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := ioutil.ReadAll(resp.Body)
+		log.Printf("Token verification failed. Response: %s\n", string(body))
+		return false
+	}
+
+	return true
 }
 
 func (u *UaaAuthService) CreateLoginRequiredResponse(req *http.Request) (*http.Response, error) {
@@ -208,7 +197,7 @@ func (u *UaaAuthService) CreateLoginRequiredResponse(req *http.Request) (*http.R
 		Body:       ioutil.NopCloser(bytes.NewReader([]byte{})),
 	}
 
-	loginUrl, err := url.Parse(u.uaaHost + u.uaaLoginPath)
+	loginUrl, err := url.Parse(u.config.Host + u.config.LoginPath)
 	if err != nil {
 		return nil, err
 	}
@@ -226,8 +215,8 @@ func (u *UaaAuthService) CreateLoginRequiredResponse(req *http.Request) (*http.R
 func (u *UaaAuthService) createLoginQuery() url.Values {
 	queryValues := make(url.Values)
 
-	queryValues.Set("scope", u.uaaLoginScope)
-	queryValues.Set("client_id", u.uaaClientId)
+	queryValues.Set("scope", u.config.LoginScope)
+	queryValues.Set("client_id", u.config.ClientId)
 	queryValues.Set("response_type", "code")
 
 	return queryValues
