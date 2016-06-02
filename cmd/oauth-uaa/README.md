@@ -1,6 +1,6 @@
 <h1> Route Service for oauth2 using UAA</h1>
 
-The following fields are required in order to run this app:
+The following environment variables are required in order to run this app:
 
 * UAA\_HOST: UAA Host (eg. https://uaa.my-cf.com )
 * UAA\_LOGIN\_PATH: Path to the uaa login page (eg. /oauth/authorize )
