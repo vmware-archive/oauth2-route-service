@@ -70,7 +70,7 @@ cf set-env uaa-rs UAA_REDIRECT_PATH "/oauth/callback"
 * Create a user provided service 
 ```cf create-user-provided-service my-uaa-rs -r https://uaa-rs.my-cf.com```
 
-* Bind the route service to dora
+* Bind the route for dora to the service instance
 ```cf bind-route-service my-cf.com --hostname dora my-uaa-rs```
 
 <h3>7. Start dora</h3>
