@@ -9,6 +9,7 @@ import (
 
 	"github.com/cfmobile/oauth2-route-service/oauth"
 	"github.com/cfmobile/oauth2-route-service/oauth/uaa"
+	"github.com/gorilla/context"
 	"github.com/gorilla/sessions"
 )
 
@@ -39,5 +40,5 @@ func main() {
 		Transport: roundTripper,
 	}
 
-	log.Fatal(http.ListenAndServe(":"+port, proxy))
+	log.Fatal(http.ListenAndServe(":"+port, context.ClearHandler(proxy)))
 }
