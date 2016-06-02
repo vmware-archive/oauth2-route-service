@@ -23,5 +23,4 @@ _testmain.go
 *.test
 *.prof
 
-oauth2-route-service
-/cmd/oauth-uaa/auth-uaa
+cmd/oauth-uaa/oauth-uaa
