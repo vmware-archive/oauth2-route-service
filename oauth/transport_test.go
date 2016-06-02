@@ -27,7 +27,7 @@ var _ = Describe("Transport", func() {
 		dashboardServer.AppendHandlers(ghttp.RespondWith(200, []byte("Some response")))
 
 		req, _ = http.NewRequest("GET", dashboardServer.URL(), nil)
-		transport = NewOauthTransport(fakeAuthService)
+		transport = NewOauthTransport(fakeAuthService, true)
 		req.Header.Add("X-CF-Forwarded-Url", "https://some-other-url.com")
 		req.Header.Add("X-CF-Proxy-Metadata", "some metadata")
 		req.Header.Add("X-CF-Proxy-Signature", "some signature")

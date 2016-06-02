@@ -13,24 +13,19 @@ type OauthTransport struct {
 	transport   http.RoundTripper
 }
 
-func NewOauthTransport(authService AuthService) http.RoundTripper {
+func NewOauthTransport(authService AuthService, skipSSLValidation bool) http.RoundTripper {
 	return &OauthTransport{
 		authService: authService,
 		transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: skipSSLValidation},
 		},
 	}
 }
 
-// uaa redirect url? get access token
-// access token present? check if valid. If it is forward to dashboard
-// if not  go to login page
 func (t *OauthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	fmt.Println("Received a new request to route")
-	fmt.Printf("Request: %+v\n", req)
 	err := checkHeaders(req)
 	if err != nil {
-		log.Printf("Bad headers. %+v\n", req.Header)
+		log.Printf("Invalid headers. %+v\n", req.Header)
 		return nil, err
 	}
 
@@ -43,9 +38,7 @@ func (t *OauthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	if !t.authService.HasValidAuthHeaders(req) {
-		fmt.Printf("No auth header, redirect to ogin url\n")
 		res, err := t.authService.CreateLoginRequiredResponse(req)
-		fmt.Printf("Login response: %+v\n", res)
 		if err != nil {
 			log.Println(err.Error())
 			return nil, err
@@ -55,6 +48,7 @@ func (t *OauthTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	res, err := t.transport.RoundTrip(req)
 	if err != nil {
+		log.Println(err.Error())
 		return nil, err
 	}
 

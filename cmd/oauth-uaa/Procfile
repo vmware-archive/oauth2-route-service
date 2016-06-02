@@ -1,1 +1,1 @@
-web: ./oauth-uaa
+web: ./oauth-uaa --skipSSLValidation=true

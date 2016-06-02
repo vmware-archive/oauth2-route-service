@@ -45,7 +45,7 @@ type UaaAuthService struct {
 	client          *http.Client
 }
 
-func NewAuthService(store sessions.Store) oauth.AuthService {
+func NewAuthService(store sessions.Store, skipSSLValidation bool) oauth.AuthService {
 	gob.Register(Token{})
 	return &UaaAuthService{
 		uaaHost:         parseEnvProperty(UAA_HOST),
@@ -57,7 +57,7 @@ func NewAuthService(store sessions.Store) oauth.AuthService {
 		store:           store,
 		client: &http.Client{
 			Timeout:   30 * time.Second,
-			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}},
+			Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: skipSSLValidation}},
 		},
 	}
 }
