@@ -40,7 +40,7 @@ var _ = Describe("UaaAuthService", func() {
 		testForMissingEnvProperty := func(property string) {
 			os.Unsetenv(property)
 			Expect(func() {
-				NewAuthService(store)
+				NewAuthService(store, true)
 			}).To(Panic())
 		}
 
@@ -70,14 +70,14 @@ var _ = Describe("UaaAuthService", func() {
 
 		It("succeeds if the env is set up properly", func() {
 			Expect(func() {
-				NewAuthService(store)
+				NewAuthService(store, true)
 			}).ToNot(Panic())
 		})
 	})
 
 	Context("Given proper environments setup", func() {
 		BeforeEach(func() {
-			authService = NewAuthService(store)
+			authService = NewAuthService(store, true)
 		})
 
 		Context("IsUaaRedirectUrl", func() {
@@ -147,7 +147,7 @@ var _ = Describe("UaaAuthService", func() {
 				req, _ = http.NewRequest("GET", "http://my-app.com", nil)
 				os.Setenv(UAA_HOST, uaaServer.URL())
 
-				authService = NewAuthService(store)
+				authService = NewAuthService(store, true)
 			})
 
 			It("returns false if there is an error", func() {
@@ -205,7 +205,7 @@ var _ = Describe("UaaAuthService", func() {
 
 				os.Setenv(UAA_HOST, uaaServer.URL())
 
-				authService = NewAuthService(store)
+				authService = NewAuthService(store, true)
 
 				expectedSentData = make(url.Values)
 				expectedSentData.Set("grant_type", "authorization_code")
