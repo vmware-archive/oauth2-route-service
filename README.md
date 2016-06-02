@@ -1,0 +1,6 @@
+<h1> Oauth2 Route Service for Cloud Foundry </h1>
+
+This repo contains code to implement an oauth2 route service for cloud foundry. 
+
+An app that can be deployed to Cloud Foundry for oauth2 using uaa is under [/cmd/oauth-uaa](https://github.com/cfmobile/oauth2-route-service/tree/master/cmd/oauth-uaa)
+
