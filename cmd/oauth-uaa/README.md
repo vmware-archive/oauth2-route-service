@@ -10,9 +10,18 @@ The following fields are required in order to run this app:
 * UAA\_REDIRECT\_PATH: Redirect path for the app, as defined in the UAA 'redirect\_uri' field. (eg. If redirect\_uri='https://dora.my-cf.com/oauth/callback' then UAA\_REDIRECT\_PATH should be /oauth/callback
 
 <h2> Example usage </h2>
+
+The following requires CF CLI version 6.16 or above.
+
+
 Assuming I want to push a sample app called [dora](https://github.com/cloudfoundry/cf-acceptance-tests/tree/master/assets/dora)
 
 <h3>1. Create an uaa client for dora</h3>
+
+The easiest way is using the [cf-uaac gem](https://github.com/cloudfoundry/cf-uaac)
+
+The client properties should be similar to below. Make sure to replace *my-cf.com* with the a real cloudfoundry url. 
+ 
 
 ```
   dora-client
@@ -49,12 +58,12 @@ cf set-env uaa-rs UAA_CLIENT_SECRET "dora-secret"
 cf set-env uaa-rs UAA_HOST "https://uaa.my-cf.com"
 cf set-env uaa-rs UAA_LOGIN_PATH "/oauth/authorize"
 cf set-env uaa-rs UAA_LOGIN_SCOPE "cloud_controller.read+openid"
-cf set-env UAA_REDIRECT_PATH "/oauth/callback"
+cf set-env uaa-rs UAA_REDIRECT_PATH "/oauth/callback"
 ```
 
 <h3>5. Start the route service</h3>
 
-``` cf restage uaa-rs ```
+``` cf start uaa-rs ```
 
 <h3>6. Use the route service for dora </h3>
 
@@ -62,9 +71,9 @@ cf set-env UAA_REDIRECT_PATH "/oauth/callback"
 ```cf create-user-provided-service my-uaa-rs -r https://uaa-rs.my-cf.com```
 
 * Bind the route service to dora
-```cf bind-route-service my-cf.com my-rs --host-name dora```
+```cf bind-route-service my-cf.com my-rs --hostname dora```
 
-<h3>Start dora</h3>
+<h3>7. Start dora</h3>
 ``` cf start dora```
 
-
+Dora should now require logging in before allowing access.
