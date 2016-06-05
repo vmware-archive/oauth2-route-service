@@ -38,10 +38,10 @@ type UaaAuthService struct {
 	client *http.Client
 }
 
-func NewAuthService(store sessions.Store, skipSSLValidation bool) oauth.AuthService {
+func NewAuthService(store sessions.Store, config UAAConfig, skipSSLValidation bool) oauth.AuthService {
 	gob.Register(Token{})
 	return &UaaAuthService{
-		config: GetConfigFromEnv(),
+		config: config,
 		store:  store,
 		client: &http.Client{
 			Timeout:   30 * time.Second,

@@ -21,63 +21,24 @@ var _ = Describe("UaaAuthService", func() {
 	var (
 		authService oauth.AuthService
 		store       *fakes.FakeStore
+		config      UAAConfig
 	)
 
 	BeforeEach(func() {
-		os.Setenv(UAA_HOST, "http://my-uaa-host.com")
-		os.Setenv(UAA_LOGIN_PATH, "/oauth/authorize")
-		os.Setenv(UAA_LOGIN_SCOPE, "scope1+scope2")
-
-		os.Setenv(UAA_REDIRECT_PATH, "/auth/callback")
-
-		os.Setenv(UAA_CLIENT_ID, "my-client-id")
-		os.Setenv(UAA_CLIENT_SECRET, "my-client-secret")
-
-		store = &fakes.FakeStore{}
-	})
-
-	Context("Service creation", func() {
-		testForMissingEnvProperty := func(property string) {
-			os.Unsetenv(property)
-			Expect(func() {
-				NewAuthService(store, true)
-			}).To(Panic())
+		config = UAAConfig{
+			Host:         "http://my-uaa-host.com",
+			LoginPath:    "/oauth/authorize",
+			LoginScope:   "scope1+scope2",
+			RedirectPath: "/auth/callback",
+			ClientId:     "my-client-id",
+			ClientSecret: "my-client-secret",
 		}
-
-		It("panics if UAA_HOST is not set", func() {
-			testForMissingEnvProperty(UAA_HOST)
-		})
-
-		It("panics if there is no UAA_REDIRECT_PATH", func() {
-			testForMissingEnvProperty(UAA_REDIRECT_PATH)
-		})
-
-		It("panics if there is no UAA_LOGIN_PATH", func() {
-			testForMissingEnvProperty(UAA_LOGIN_PATH)
-		})
-
-		It("panics if there is no UAA_LOGIN_SCOPE", func() {
-			testForMissingEnvProperty(UAA_LOGIN_SCOPE)
-		})
-
-		It("panics if there is no UAA_CLIENT_ID", func() {
-			testForMissingEnvProperty(UAA_CLIENT_ID)
-		})
-
-		It("panics if there is no UAA_CLIENT_SECRET", func() {
-			testForMissingEnvProperty(UAA_CLIENT_SECRET)
-		})
-
-		It("succeeds if the env is set up properly", func() {
-			Expect(func() {
-				NewAuthService(store, true)
-			}).ToNot(Panic())
-		})
+		store = &fakes.FakeStore{}
 	})
 
 	Context("Given proper environments setup", func() {
 		BeforeEach(func() {
-			authService = NewAuthService(store, true)
+			authService = NewAuthService(store, config, true)
 		})
 
 		Context("IsUaaRedirectUrl", func() {
@@ -145,9 +106,9 @@ var _ = Describe("UaaAuthService", func() {
 			BeforeEach(func() {
 				uaaServer = ghttp.NewServer()
 				req, _ = http.NewRequest("GET", "http://my-app.com", nil)
-				os.Setenv(UAA_HOST, uaaServer.URL())
+				config.Host = uaaServer.URL()
 
-				authService = NewAuthService(store, true)
+				authService = NewAuthService(store, config, true)
 			})
 
 			It("returns false if there is an error", func() {
@@ -202,10 +163,9 @@ var _ = Describe("UaaAuthService", func() {
 
 			BeforeEach(func() {
 				uaaServer = ghttp.NewServer()
+				config.Host = uaaServer.URL()
 
-				os.Setenv(UAA_HOST, uaaServer.URL())
-
-				authService = NewAuthService(store, true)
+				authService = NewAuthService(store, config, true)
 
 				expectedSentData = make(url.Values)
 				expectedSentData.Set("grant_type", "authorization_code")

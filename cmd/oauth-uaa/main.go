@@ -25,14 +25,15 @@ func init() {
 }
 
 func main() {
-
 	var port string
 	if port = os.Getenv("PORT"); len(port) == 0 {
 		port = DEFAULT_PORT
 	}
 
+	uaaConfig := uaa.GetConfigFromEnv()
 	store := sessions.NewCookieStore([]byte("so-secret"))
-	authService := uaa.NewAuthService(store, skipSSLValidation)
+
+	authService := uaa.NewAuthService(store, uaaConfig, skipSSLValidation)
 	roundTripper := oauth.NewOauthTransport(authService, skipSSLValidation)
 
 	proxy := &httputil.ReverseProxy{
