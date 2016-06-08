@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
 
 	"github.com/cfmobile/oauth2-route-service/oauth"
 	. "github.com/cfmobile/oauth2-route-service/oauth/uaa"
@@ -193,7 +192,7 @@ var _ = Describe("UaaAuthService", func() {
 				uaaServer.AppendHandlers(
 					ghttp.CombineHandlers(
 						ghttp.VerifyRequest("POST", "/oauth/token"),
-						ghttp.VerifyBasicAuth(os.Getenv(UAA_CLIENT_ID), os.Getenv(UAA_CLIENT_SECRET)),
+						ghttp.VerifyBasicAuth(config.ClientId, config.ClientSecret),
 						verifyForm,
 						ghttp.RespondWith(http.StatusInternalServerError, "error"),
 					),
@@ -227,7 +226,7 @@ var _ = Describe("UaaAuthService", func() {
 					uaaServer.AppendHandlers(
 						ghttp.CombineHandlers(
 							ghttp.VerifyRequest("POST", "/oauth/token"),
-							ghttp.VerifyBasicAuth(os.Getenv(UAA_CLIENT_ID), os.Getenv(UAA_CLIENT_SECRET)),
+							ghttp.VerifyBasicAuth(config.ClientId, config.ClientSecret),
 							verifyForm,
 							ghttp.RespondWith(http.StatusOK, "bad data"),
 						),
@@ -242,7 +241,7 @@ var _ = Describe("UaaAuthService", func() {
 					uaaServer.AppendHandlers(
 						ghttp.CombineHandlers(
 							ghttp.VerifyRequest("POST", "/oauth/token"),
-							ghttp.VerifyBasicAuth(os.Getenv(UAA_CLIENT_ID), os.Getenv(UAA_CLIENT_SECRET)),
+							ghttp.VerifyBasicAuth(config.ClientId, config.ClientSecret),
 							verifyForm,
 							ghttp.RespondWithJSONEncoded(http.StatusOK, token),
 						),
@@ -257,7 +256,7 @@ var _ = Describe("UaaAuthService", func() {
 					uaaServer.AppendHandlers(
 						ghttp.CombineHandlers(
 							ghttp.VerifyRequest("POST", "/oauth/token"),
-							ghttp.VerifyBasicAuth(os.Getenv(UAA_CLIENT_ID), os.Getenv(UAA_CLIENT_SECRET)),
+							ghttp.VerifyBasicAuth(config.ClientId, config.ClientSecret),
 							verifyForm,
 							ghttp.RespondWithJSONEncoded(http.StatusOK, token),
 						),
@@ -281,7 +280,7 @@ var _ = Describe("UaaAuthService", func() {
 					uaaServer.AppendHandlers(
 						ghttp.CombineHandlers(
 							ghttp.VerifyRequest("POST", "/oauth/token"),
-							ghttp.VerifyBasicAuth(os.Getenv(UAA_CLIENT_ID), os.Getenv(UAA_CLIENT_SECRET)),
+							ghttp.VerifyBasicAuth(config.ClientId, config.ClientSecret),
 							verifyForm,
 							ghttp.RespondWithJSONEncoded(http.StatusOK, token),
 						),
